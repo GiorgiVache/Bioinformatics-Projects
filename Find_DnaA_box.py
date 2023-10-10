@@ -48,7 +48,9 @@ def first_symbol(pattern):
 def neighbors(pattern, d):
     nucleotides = ['A', 'T', 'G', 'C']
     if d == 0:
-        return pattern
+        neighborhood =[]
+        neighborhood.append(pattern)
+        return neighborhood
     elif len(pattern) == 1:
         return nucleotides
     neighborhood = []
