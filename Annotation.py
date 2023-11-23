@@ -1,4 +1,4 @@
-"""The program takes a gene marks file as an input and writes a fasta file where the genes from gene marks will be
+"""The program takes a gene marks file, a fasta file with the complete genome and locus tag as inputs and writes a fasta file where the genes from gene marks will be
 translated to amino acid sequences in fasta"""
 
 TRANSLATION_TABLE = {
