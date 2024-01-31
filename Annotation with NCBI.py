@@ -24,35 +24,38 @@ import re
 import textwrap
 from Bio.Blast import NCBIWWW
 import xml.etree.ElementTree as ET
-#from retry import retry
+from retry import retry
+import urllib
+import time
 
-
-#@retry()
+@retry(urllib.error.URLError, delay=60)
 def blast_protein(sequence):
     result_handle = NCBIWWW.qblast("blastp", "nr", sequence, hitlist_size=1)
-
+    print("Blast done")
     with open("blast_results.xml", "w") as out_handle:
         out_handle.write(result_handle.read())
         result_handle.close()
 
-    print("BLAST search successful. Results saved in 'blast_results.xml'")
+    print("Results saved")
 
     tree = ET.parse("blast_results.xml")
     root = tree.getroot()
+    hit_def = root.find('.//Hit_def')
 
-    hit_def = root.find('.//Hit_def')  # Use the appropriate XPath to locate the tag
+    print("Hit_def found")
 
     if hit_def is not None:
         hit_def_text = hit_def.text
-        pattern = r'^.*?(?=\>)'
+        pattern = r'^.*?(?= \[)'
         match = re.search(pattern, hit_def_text)
         if match:
             result = match.group(0)
+            print("match found")
             return str(result)
         else:
             return str(hit_def_text)
     else:
-        print("Hit_def tag not found.")
+        return "None found"
 
 
 def embl_generator(genemarks_file, fasta_file, locus_tag):
@@ -83,23 +86,36 @@ def embl_generator(genemarks_file, fasta_file, locus_tag):
                     TRANSLATION_TABLE[nucleotide_sequence[i:i + 3]] for i in
                     range(0, len(nucleotide_sequence), 3)).replace("*", "")
                 info_tuple += (amino_acid_sequence,)
+                if info_tuple == (" ",) or info_tuple == ("",):
+                    continue
+                time.sleep(60)
+                protein = blast_protein(amino_acid_sequence)
+                if protein.startswith("hypothetical protein"):
+                    protein = "hypothetical protein"
+                    with open("hypotheticals.txt", 'a') as hypo:
+                        hypo.write("AA Sequence_hypothetical protein: " + amino_acid_sequence + "\n")
+                    colour = 1
+                else:
+                    colour = 3
                 embl_content = f"""FT   gene            {info_tuple[0]}
 FT                   /locus_tag="{locus_tag + "-" + str(split_content.index(gene) + 1).zfill(3)}"
 FT   CDS             {info_tuple[0]}
 FT                   /locus_tag="{locus_tag + "-" + str(split_content.index(gene) + 1).zfill(3)}"
 FT                   /codon_start=1
 FT                   /transl_table=11
-FT                   /product="{blast_protein(amino_acid_sequence)}"
+FT                   /product="{protein}"
+FT                   /colour="{str(colour)}"
 {textwrap.fill(info_tuple[1], width=79, initial_indent='FT                   /translation="', subsequent_indent=
                 'FT                   ')}"
 """
                 embl_file.write(embl_content)
-                print(embl_content)
+                print(str(info_tuple[0]))
+                print("embl_content saved \n MOVING TO THE NEXT GENE \n")
             with open(fasta_file, 'r') as fast_file:
                 embl_file.write(fast_file.read())
 
 
 x = input("Please write the 'Genemarks' file name with txt extension: ")
-y = input("Please write the Fasta file name with txt extension, containing whole genome: ")
+y = input("Please write the Fasta file name with fasta extension, containing whole genome: ")
 z = input("Please write the locus tag: ")
 embl_generator(x, y, z)
